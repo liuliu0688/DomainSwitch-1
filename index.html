@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <!-- Telegram群组: https://t.me/htpnu -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DomainSwitch - 智能域名跳转系统</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/themes.css">
+    <link rel="stylesheet" href="css/responsive.css">
+</head>
+<body>
+    <div class="container">
+
+        <div class="logo">
+            <i class="fas fa-rocket"></i>
+        </div>
+        
+        <h1><i class="fas fa-link"></i> 智能域名跳转系统</h1>
+        
+        <div class="browser-guide" id="browserGuide">
+            <i class="fas fa-times" id="closeGuide"></i>
+            <h3><i class="fas fa-exclamation-triangle"></i> 浏览器提示</h3>
+            <p>检测到您在微信/QQ中打开，为了更好的体验，请点击右上角选择在浏览器中打开</p>
+        </div>
+        
+        <div id="domainTesting" class="domain-testing">
+            <div class="domain-item">
+                <i class="fas fa-spinner fa-spin"></i>
+                <span>正在检测最快域名...</span>
+            </div>
+        </div>
+        
+        <div class="countdown" id="countdown">5</div>
+        
+        <div class="progress-container">
+            <div class="progress-bar" id="progressBar"></div>
+        </div>
+        
+        <div class="domain-info">
+            <i class="fas fa-globe"></i>
+            即将跳转到: <strong id="targetDomain">等待检测...</strong>
+        </div>
+        
+        <div class="action-buttons">
+            <button class="btn btn-primary" id="manualRedirect">
+                <i class="fas fa-external-link-alt"></i> 立即跳转
+            </button>
+            <button class="btn btn-outline" id="cancelRedirect">
+                <i class="fas fa-times"></i> 取消跳转
+            </button>
+        </div>
+    </div>
+
+    <script src="js/config.js"></script>
+    <script>
+        // 状态管理
+        let state = {
+            fastestDomain: null,
+            countdown: config.defaultCountdown,
+            isWechat: false,
+            isQQ: false,
+            targetPath: window.location.hash.substring(1) || "/",
+            countdownInterval: null,
+            progressInterval: null,
+            cancelled: false
+        };
+
+        // DOM 元素
+        const elements = {
+            countdown: document.getElementById('countdown'),
+            progressBar: document.getElementById('progressBar'),
+            targetDomain: document.getElementById('targetDomain'),
+            manualRedirect: document.getElementById('manualRedirect'),
+            browserGuide: document.getElementById('browserGuide'),
+            domainTesting: document.getElementById('domainTesting'),
+            closeGuide: document.getElementById('closeGuide'),
+            cancelRedirect: document.getElementById('cancelRedirect')
+        };
+
+        // 检测浏览器环境
+        function detectBrowser() {
+            const ua = navigator.userAgent;
+            state.isWechat = /MicroMessenger/i.test(ua);
+            state.isQQ = /QQ/i.test(ua) && !/MQQBrowser/i.test(ua);
+            
+            if (state.isWechat || state.isQQ) {
+                elements.browserGuide.style.display = 'block';
+            }
+        }
+
+        // 测速函数 - 使用Image对象避免CORS问题
+        function testDomainSpeed(domain) {
+            return new Promise((resolve) => {
+                const img = new Image();
+                const startTime = Date.now();
+                
+                img.onload = function() {
+                    const endTime = Date.now();
+                    resolve({
+                        domain: domain,
+                        speed: endTime - startTime
+                    });
+                };
+                
+                img.onerror = function() {
+                    resolve({
+                        domain: domain,
+                        speed: Infinity // 设置为无穷大表示失败
+                    });
+                };
+                
+                // 设置超时时间
+                setTimeout(() => {
+                    resolve({
+                        domain: domain,
+                        speed: Infinity
+                    });
+                }, 5000);
+                
+                // 开始加载图片（添加时间戳避免缓存）
+                img.src = domain.url + config.testImagePath + '?t=' + Date.now();
+            });
+        }
+
+        // 选择最快域名
+        async function selectFastestDomain() {
+            elements.domainTesting.innerHTML = '';
+            
+            // 创建测速项目显示
+            config.domains.forEach(domain => {
+                const domainEl = document.createElement('a');
+                domainEl.className = 'domain-item';
+                domainEl.id = `domain-${config.domains.indexOf(domain)}`;
+                domainEl.href = domain.url;
+                domainEl.target = '_blank';
+                domainEl.innerHTML = `<i class="fas fa-spinner fa-spin"></i> <span>${domain.name}</span> <span class="ping">检测中...</span>`;
+                elements.domainTesting.appendChild(domainEl);
+            });
+            
+            // 并行测试所有域名
+            const testPromises = config.domains.map(domain => testDomainSpeed(domain));
+            const results = await Promise.all(testPromises);
+            
+            // 更新每个域名的状态
+            results.forEach(result => {
+                const domainEl = document.getElementById(`domain-${config.domains.indexOf(result.domain)}`);
+                if (result.speed === Infinity) {
+                    domainEl.innerHTML = `<i class="fas fa-times-circle"></i> <span>${result.domain.name}</span> <span class="ping">失败</span>`;
+                    domainEl.style.opacity = "0.6";
+                } else {
+                    domainEl.innerHTML = `<i class="fas fa-check-circle"></i> <span>${result.domain.name}</span> <span class="ping">${result.speed}ms</span>`;
+                }
+            });
+            
+            // 找出最快的域名
+            const validResults = results.filter(result => result.speed !== Infinity);
+            if (validResults.length === 0) {
+                // 所有域名都测试失败，使用第一个作为备用
+                state.fastestDomain = config.domains[0];
+                document.getElementById(`domain-0`).innerHTML = `<i class="fas fa-exclamation-circle"></i> <span>${config.domains[0].name}</span> <span class="ping">备用</span>`;
+            } else {
+                validResults.sort((a, b) => a.speed - b.speed);
+                state.fastestDomain = validResults[0].domain;
+                
+                // 标记最快的域名
+                const fastestIndex = config.domains.findIndex(d => d.url === state.fastestDomain.url);
+                document.getElementById(`domain-${fastestIndex}`).classList.add('fastest');
+            }
+            
+            elements.targetDomain.textContent = state.fastestDomain.url + state.targetPath;
+            elements.manualRedirect.href = state.fastestDomain.url + state.targetPath;
+            
+            return state.fastestDomain;
+        }
+
+        // 开始倒计时
+        function startCountdown() {
+            // 重置进度条
+            elements.progressBar.style.width = '100%';
+            
+            // 倒计时数字
+            state.countdownInterval = setInterval(() => {
+                if (state.cancelled) return;
+                
+                state.countdown--;
+                elements.countdown.textContent = state.countdown;
+                
+                if (state.countdown <= 0) {
+                    clearInterval(state.countdownInterval);
+                    redirect();
+                }
+            }, 1000);
+            
+            // 进度条动画
+            let width = 100;
+            state.progressInterval = setInterval(() => {
+                if (state.cancelled) return;
+                
+                width -= 100 / config.defaultCountdown / 10;
+                elements.progressBar.style.width = width + '%';
+                
+                if (width <= 0) {
+                    clearInterval(state.progressInterval);
+                }
+            }, 100);
+        }
+
+        // 跳转函数
+        function redirect() {
+            if (state.fastestDomain && !state.isWechat && !state.isQQ && !state.cancelled) {
+                window.location.href = state.fastestDomain.url + state.targetPath;
+            }
+        }
+
+        // 初始化主题
+        function initTheme() {
+            // 应用默认主题
+            document.body.className = `theme-${config.defaultTheme}`;
+        }
+
+        // 页面初始化
+        async function init() {
+            detectBrowser();
+            initTheme();
+            
+            // 关闭浏览器提示
+            elements.closeGuide.addEventListener('click', () => {
+                elements.browserGuide.style.display = 'none';
+            });
+            
+            // 取消跳转
+            elements.cancelRedirect.addEventListener('click', () => {
+                state.cancelled = true;
+                clearInterval(state.countdownInterval);
+                clearInterval(state.progressInterval);
+                elements.progressBar.style.width = '0%';
+                elements.countdown.textContent = '已取消';
+                elements.countdown.style.color = 'var(--danger-color)';
+            });
+            
+            // 手动跳转
+            elements.manualRedirect.addEventListener('click', (e) => {
+                e.preventDefault();
+                redirect();
+            });
+            
+            await selectFastestDomain();
+            startCountdown();
+        }
+
+        // 启动应用
+        init();
+    </script>
+</body>
+</html>
