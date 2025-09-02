@@ -109,7 +109,7 @@ const config = {
      * @type {string}
      * @default "default"
      */
-    defaultTheme: "warm"
+    defaultTheme: "default"
 };
 
 // 配置验证
