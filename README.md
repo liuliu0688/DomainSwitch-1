@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # DomainSwitch - 智能域名跳转系统
 
 ![智能域名跳转系统](https://img.shields.io/badge/Version-1.0.0-blue.svg)
@@ -172,6 +171,3 @@ const config = {
 **感谢使用 DomainSwitch！** 🚀
 
 如果这个项目对您有帮助，请给个 ⭐ Star 支持我们！
-=======
-# DomainSwitch
->>>>>>> f9fdfa3a8f101ca63158ecfa96baf8cc74be4422
