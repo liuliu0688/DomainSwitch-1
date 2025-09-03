@@ -16,9 +16,9 @@ const config = {
      * @property {string} url - 域名完整URL
      */
     domains: [
-        {name: "主域名", url: "aHR0cHM6Ly9iZWlrZXFpYW5kdWFuMS5jYw=="},
-        {name: "镜像一", url: "aHR0cHM6Ly9iZWlrZXFpYW5kdWFuLmNj"},
-        {name: "镜像二", url: "aHR0cHM6Ly9iZWlrZXpmenkuY2M="},
+        {name: "主域名", url: "https://beikeqianduan.cc"},
+        {name: "镜像一", url: "https://beikeqianduan1.cc"},
+        {name: "镜像二", url: "https://beikezfzy.cc"},
     ],
 
     /**
